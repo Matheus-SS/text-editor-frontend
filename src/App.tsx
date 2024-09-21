@@ -1,7 +1,8 @@
 import styled from 'styled-components'
 import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit } from "react-icons/ai";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Editor, EditorTextChangeEvent } from 'primereact/editor';
+import { connect, socket } from './socket';
         
 
 const PRIMARY_BACKGROUND = '#FFF';
@@ -13,7 +14,44 @@ const TEXT_SIZE_BIG = 24;
 const ICON_COLOR = '#a4a8ad';
 
 function App() {
+  const [isConnected, setIsConnected] = useState(socket.connected);
   const [text, setText] = useState<string>('');
+
+  function onHandleText(e:EditorTextChangeEvent) {
+    setText(e.htmlValue!);
+    socket.emit('editor-change', e.htmlValue)
+  }
+
+  useEffect(() => {
+    connect();
+    function onConnect() {
+      setIsConnected(true);
+    }
+
+    function onDisconnect() {
+      setIsConnected(false);
+    } 
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    }
+  },[]);
+
+  useEffect(() => {
+    socket.on('update-editor-change', (serverContent: string) => {
+      console.log("mensagem do servidor: ", serverContent)
+      setText(serverContent)
+    })
+
+    return () => {
+      socket.off('update-editor-change');
+    };
+
+  },[]);
 
   return (
     <Grid>
@@ -43,6 +81,7 @@ function App() {
         <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
         <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
         <div className='user-info2'>
+          <span>{isConnected ? 'CONECTADO': 'DESCONECTADO'}</span>
           <span>Olá, Ana Christiane Magalhaes</span>
           <div><img src='https://i.pravatar.cc/150?img=5' alt='foto-perfil'/></div>
         </div>
@@ -57,7 +96,7 @@ function App() {
             </div>
 
             <div className='editor'>
-              <Editor value={text} onTextChange={(e: EditorTextChangeEvent) => setText(e.htmlValue!)} style={{ height: '40vh' }}/>
+              <Editor value={text} onTextChange={onHandleText} style={{ height: '40vh' }}/>
             </div>
         </Container>
 
