@@ -3,7 +3,8 @@ import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit } from "re
 import { useEffect, useState } from 'react';
 import { Editor, EditorTextChangeEvent } from 'primereact/editor';
 import { connect, socket } from './socket';
-        
+import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
+import axios from 'axios';
 
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
@@ -13,7 +14,20 @@ const ICON_SIZE_BIG = 24;
 const TEXT_SIZE_BIG = 24;
 const ICON_COLOR = '#a4a8ad';
 
-function App() {
+function Login() {
+  return (
+    <header>
+      <SignInButton />
+    </header>
+  );
+}
+
+function Home() {
+  const { signOut, getToken } = useAuth();
+  const { user } = useUser();
+
+  console.log("USER", user)
+
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [text, setText] = useState<string>('');
 
@@ -21,37 +35,56 @@ function App() {
     setText(e.htmlValue!);
     socket.emit('editor-change', e.htmlValue)
   }
+  
+  
+    useEffect(() => { 
+      connect();
+      function onConnect() {
+        setIsConnected(true);
+      }
+  
+      function onDisconnect() {
+        setIsConnected(false);
+      } 
+  
+      socket.on('connect', onConnect);
+      socket.on('disconnect', onDisconnect);
+  
+      return () => {
+        socket.off('connect', onConnect);
+        socket.off('disconnect', onDisconnect);
+      }
+    },[]);
+  
+    useEffect(() => {
+      socket.on('update-editor-change', (serverContent: string) => {
+        console.log("mensagem do servidor: ", serverContent)
+        setText(serverContent)
+      })
+  
+      return () => {
+        socket.off('update-editor-change');
+      };
+  
+    },[]);
 
-  useEffect(() => {
-    connect();
-    function onConnect() {
-      setIsConnected(true);
-    }
+    useEffect(() => {
+      async function fetchToken() {
+        const data = await getToken();
+        await axios.get('http://localhost:3000/secure', {
+          headers: {
+            Authorization: `Bearer ${data}`
+          }
+        });
+        console.log("DATA", data)
+      }
 
-    function onDisconnect() {
-      setIsConnected(false);
-    } 
+      fetchToken()
+    },[])
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-    }
-  },[]);
-
-  useEffect(() => {
-    socket.on('update-editor-change', (serverContent: string) => {
-      console.log("mensagem do servidor: ", serverContent)
-      setText(serverContent)
-    })
-
-    return () => {
-      socket.off('update-editor-change');
-    };
-
-  },[]);
+  const handleLogout = async () => {
+    await signOut()
+  }
 
   return (
     <Grid>
@@ -67,12 +100,12 @@ function App() {
 
         <div className='user-info-line'>
           <UserInfo>
-            <div className='user-info-image'><img src='https://i.pravatar.cc/150?img=5' alt='foto-perfil'/></div>
+            <div className='user-info-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
             <div className='user-info-name'>
-              <strong>Ana Christiane Magalhaes</strong>
-              <div>anachristianemagalhaes@hotmail.com</div>
+              <strong>{user?.fullName}</strong>
+              <div>{user?.primaryEmailAddress?.emailAddress}</div>
             </div>
-            <div className='user-info-logout'><AiOutlineLogout color='red'/></div>
+            <div className='user-info-logout' onClick={handleLogout}><AiOutlineLogout color='red'/></div>
           </UserInfo>
         </div>
       </Sidebar>
@@ -82,8 +115,8 @@ function App() {
         <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
         <div className='user-info2'>
           <span>{isConnected ? 'CONECTADO': 'DESCONECTADO'}</span>
-          <span>Olá, Ana Christiane Magalhaes</span>
-          <div><img src='https://i.pravatar.cc/150?img=5' alt='foto-perfil'/></div>
+          <span>Olá, {user?.fullName}</span>
+          <div><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
         </div>
       </Header>
 
@@ -103,6 +136,11 @@ function App() {
       </Main>
     </Grid>
   )
+}
+function App() {
+  const { isSignedIn } = useAuth();
+  const COMPONENT = isSignedIn ? <Home /> : <Login />;
+  return COMPONENT;
 }
 
 const Grid = styled.div`
