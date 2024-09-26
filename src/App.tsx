@@ -2,9 +2,10 @@ import styled from 'styled-components'
 import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit } from "react-icons/ai";
 import { useEffect, useState } from 'react';
 import { Editor, EditorTextChangeEvent } from 'primereact/editor';
-import { connect, socket } from './socket';
+import { SocketConnection} from './socket';
 import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios';
+
 
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
@@ -23,53 +24,25 @@ function Login() {
 }
 
 function Home() {
+  const socketConnection = SocketConnection.getInstance();
   const { signOut, getToken } = useAuth();
   const { user } = useUser();
 
   console.log("USER", user)
 
-  const [isConnected, setIsConnected] = useState(socket.connected);
+  const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string>('');
-
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
   function onHandleText(e:EditorTextChangeEvent) {
     setText(e.htmlValue!);
-    socket.emit('editor-change', e.htmlValue)
+    socketConnection.getSocket()?.emit('editor-change', e.htmlValue)
   }
-  
-  
-    useEffect(() => { 
-      connect();
-      function onConnect() {
-        setIsConnected(true);
-      }
-  
-      function onDisconnect() {
-        setIsConnected(false);
-      } 
-  
-      socket.on('connect', onConnect);
-      socket.on('disconnect', onDisconnect);
-  
-      return () => {
-        socket.off('connect', onConnect);
-        socket.off('disconnect', onDisconnect);
-      }
-    },[]);
-  
-    useEffect(() => {
-      socket.on('update-editor-change', (serverContent: string) => {
-        console.log("mensagem do servidor: ", serverContent)
-        setText(serverContent)
-      })
-  
-      return () => {
-        socket.off('update-editor-change');
-      };
-  
-    },[]);
 
-    useEffect(() => {
-      async function fetchToken() {
+
+  useEffect(() => {
+    async function fetchToken() {
+      try {
         const data = await getToken();
         await axios.get('http://localhost:3000/secure', {
           headers: {
@@ -77,10 +50,53 @@ function Home() {
           }
         });
         console.log("DATA", data)
+        setToken(data);
+        setLoading(false);
+      } catch (error) {
+        console.log("error", error);
+        setLoading(false);
       }
+    }
 
-      fetchToken()
-    },[])
+    fetchToken()
+  },[]);
+
+  useEffect(() => { 
+    if (token) {
+      socketConnection.connect(token);
+      function onConnect() {
+        setIsConnected(true);
+        console.log("socket", socketConnection.getSocket())
+      }
+    
+      function onDisconnect() {
+        setIsConnected(false);
+      } 
+      
+      socketConnection.getSocket()?.on('connect', onConnect);
+      socketConnection.getSocket()?.on('disconnect', onDisconnect);
+      console.log("AKIAKIAKIAKAI");
+    
+      return () => {
+        socketConnection.getSocket()?.off('connect', onConnect);
+        socketConnection.getSocket()?.off('disconnect', onDisconnect);
+      }
+    }
+  },[token]);
+
+    useEffect(() => {
+      socketConnection.getSocket()?.on('update-editor-change', (serverContent: string) => {
+        console.log("mensagem do servidor: ", serverContent)
+        setText(serverContent)
+      })
+  
+      return () => {
+        socketConnection.getSocket()?.off('update-editor-change');
+      };
+  
+    },[]);
+
+    
 
   const handleLogout = async () => {
     await signOut()

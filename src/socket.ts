@@ -1,16 +1,41 @@
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 
 const URL = 'http://localhost:3000';
 
-export const socket = io(URL, {
-  autoConnect: false
-});
+export class SocketConnection {
+  private static instance: SocketConnection;
+  private socket: Socket | null = null;
 
+  private constructor() {}
 
-export function connect() {
-  socket.connect();
-}
+  public static getInstance(): SocketConnection {
+    if (!SocketConnection.instance) {
+      SocketConnection.instance = new SocketConnection();
+    }
+    
+    return SocketConnection.instance;
+  }
 
-export function disconnect() {
-  socket.disconnect();
+  public connect(token: string): Socket {
+    if (!this.socket) {
+      this.socket = io(URL, {
+        auth: {
+          token
+        }
+      })
+    }
+
+    return this.socket;
+  }
+
+  public getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  public disconnect(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
 }
