@@ -1,11 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import styled from 'styled-components'
 import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit } from "react-icons/ai";
-import { useEffect, useState } from 'react';
-import { Editor, EditorTextChangeEvent } from 'primereact/editor';
+import { useCallback, useEffect, useState } from 'react';
 import { SocketConnection} from './socket';
 import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios';
-
 
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
@@ -28,29 +27,29 @@ function Home() {
   const { signOut, getToken } = useAuth();
   const { user } = useUser();
 
-  console.log("USER", user)
-
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
-  const [text, setText] = useState<string>('');
+  const [text, setText] = useState<string | null>('');
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(null);
-  function onHandleText(e:EditorTextChangeEvent) {
-    setText(e.htmlValue!);
-    socketConnection.getSocket()?.emit('editor-change', e.htmlValue)
-  }
+  const [token, setToken] = useState<string>();
+
+  const onHandleText = useCallback((e:any) => {
+    setText(e.target.value);
+    console.log("SOCKET", socketConnection.getSocket()?.id)
+    socketConnection.getSocket()?.emit('editor-change', e.target.value)
+  }, [socketConnection])
+
 
 
   useEffect(() => {
     async function fetchToken() {
       try {
         const data = await getToken();
-        await axios.get('http://localhost:3000/secure', {
+        const response = await axios.get('http://localhost:3000/secure', {
           headers: {
             Authorization: `Bearer ${data}`
           }
         });
-        console.log("DATA", data)
-        setToken(data);
+        setToken(response.data.token);
         setLoading(false);
       } catch (error) {
         console.log("error", error);
@@ -66,7 +65,6 @@ function Home() {
       socketConnection.connect(token);
       function onConnect() {
         setIsConnected(true);
-        console.log("socket", socketConnection.getSocket())
       }
     
       function onDisconnect() {
@@ -75,28 +73,27 @@ function Home() {
       
       socketConnection.getSocket()?.on('connect', onConnect);
       socketConnection.getSocket()?.on('disconnect', onDisconnect);
-      console.log("AKIAKIAKIAKAI");
     
       return () => {
         socketConnection.getSocket()?.off('connect', onConnect);
         socketConnection.getSocket()?.off('disconnect', onDisconnect);
       }
     }
-  },[token]);
+  },[socketConnection, token]);
 
     useEffect(() => {
-      socketConnection.getSocket()?.on('update-editor-change', (serverContent: string) => {
-        console.log("mensagem do servidor: ", serverContent)
-        setText(serverContent)
-      })
-  
-      return () => {
-        socketConnection.getSocket()?.off('update-editor-change');
-      };
-  
-    },[]);
+      if (token) {
+        socketConnection.getSocket()?.on('update-editor-change', (serverContent: string) => {
+          console.log("mensagem do servidor: ", serverContent)
+          const value = serverContent
+          setText(value)
+        });
 
-    
+        return () => {
+          socketConnection.getSocket()?.off('update-editor-change');
+        };
+      }
+    },[socketConnection, token]);
 
   const handleLogout = async () => {
     await signOut()
@@ -144,8 +141,8 @@ function Home() {
               <AiOutlineEdit size={ICON_SIZE_BIG} color={ICON_COLOR}/>
             </div>
 
-            <div className='editor'>
-              <Editor value={text} onTextChange={onHandleText} style={{ height: '40vh' }}/>
+            <div>
+              <textarea value={text!} onChange={onHandleText} className='editor'></textarea>
             </div>
         </Container>
 
@@ -328,8 +325,11 @@ const Container = styled.div`
     }
   }
   .editor {
+    width: 100%;
+    height: 40vh;
     margin-top: 30px;
     border-radius: 8px;
+    border: 1px solid #CBD5E1;
     background: #FFF;
     box-shadow: 0px 4px 8px -2px rgba(23, 23, 23, 0.10), 0px 2px 4px -2px rgba(23, 23, 23, 0.06); 
   }
