@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styled from 'styled-components'
 import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit, AiOutlineSave } from "react-icons/ai";
-import { useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { SocketConnection} from './socket';
 import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios';
+import { z } from "zod";
+import toast, { Toaster } from 'react-hot-toast';
 
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
@@ -35,8 +37,8 @@ function Home() {
   const { user } = useUser();
 
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
-  const [text, setText] = useState<string | null>('');
-  const [title, setTitle] = useState<string | null>('');
+  const [text, setText] = useState<string>('');
+  const [title, setTitle] = useState<string>('');
 
   const [loadingApi, setLoadingApi] = useState(true);
   const [loadingSocket, setLoadingSocket] = useState(true);
@@ -47,9 +49,46 @@ function Home() {
     setText(e.target.value);
     console.log("SOCKET", socketConnection.getSocket()?.id)
     socketConnection.getSocket()?.emit('editor-change', e.target.value)
-  }, [socketConnection])
+  }, [socketConnection]);
 
+  const onHandleTitle = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+  }, [socketConnection]);
 
+  const onHandleSave = () => {
+    const Document = z.object({
+      title: z.string().min(2, {
+        message: 'Título no mínimo 2 caracteres'
+      }).max(20, {
+        message: 'Título no máximo 20 caracteres'
+      }),
+      text: z.string().min(2, {
+        message: 'Texto no mínimo 2 caracteres'
+      }).max(20, {
+        message: 'Texto no máximo 1000 caracteres'
+      })
+    });
+
+    const doc = Document.safeParse({ title: title?.trim(), text: text?.trim()})
+    let obj;
+    if (doc.success === false) {
+      console.log("doc", doc.error.issues);
+      const error = doc.error.issues.map(d => d.message);
+      const err= error.join('\n')
+      toast.error(err, {
+        position: 'top-right'
+      })
+      console.log(err);
+    } else {
+      obj = {
+        title: doc.data.title,
+        text: doc.data.text
+      }
+    }
+    
+    console.log("text", text)
+    socketConnection.getSocket()?.emit('client.document.save', JSON.stringify(obj))
+  };
 
   useEffect(() => {
     async function fetchToken() {
@@ -128,8 +167,14 @@ function Home() {
               <strong>GEditor</strong>
             </div>
 
-            <MenuList>
-              <li><AiOutlineHome size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Inicio</strong></li>
+            <MenuList className='menu-list'>
+              <li className='menu-item'>
+                <AiOutlineHome size={ICON_SIZE_BIG} color={ICON_COLOR} />
+                <strong>Inicio</strong>
+              </li>
+              <ul className='sublist'>
+                  <li className='sublist-item'>titulo do texto</li>
+                </ul>
               {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
             </MenuList>
 
@@ -149,27 +194,42 @@ function Home() {
             <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
             <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
             <div className='user-info2'>
-              <div className='save'><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
+              <div className='save'onClick={onHandleSave}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
               <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
             </div>
           </Header>
 
           <Main>
-            
+            <form>
             <Container>
                 <div className='title-text'>
-                  <input placeholder='Titulo'/>
+                  <input 
+                    placeholder='Titulo' 
+                    value={title} 
+                    onChange={onHandleTitle} 
+                    minLength={2} 
+                    maxLength={20}
+                    required  
+                  />
                   <AiOutlineEdit size={ICON_SIZE_BIG} color={ICON_COLOR}/>
                 </div>
 
                 <div>
-                  <textarea value={text!} onChange={onHandleText} className='editor'></textarea>
+                  <textarea 
+                    value={text} 
+                    onChange={onHandleText} 
+                    className='editor'
+                    minLength={2} 
+                    maxLength={1000}
+                    required 
+                  ></textarea>
                 </div>
             </Container>
-
+            </form>
           </Main>
         </Grid>
       )}
+      <Toaster />
     </>
   )
 }
@@ -206,23 +266,33 @@ const Sidebar = styled.div`
   }
 `
 
-const MenuList = styled.ul`
-margin-top: 20px;
-padding: 20px;
+const MenuList = styled.ul.attrs({
+  className: 'menu-list'
+})`
+  margin-top: 20px;
+  padding: 20px;
 
-display: flex;
-flex-direction: column;
-flex-grow: 2;
-li {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  flex-grow: 2;
 
-  margin-top: 10px;
-  cursor: pointer;
+  .menu-item {
+    display: flex;
+    align-items: center;
 
-  strong {
-    margin-left: 10px;
+    margin-top: 10px;
+    cursor: pointer;
+
+    strong {
+      margin-left: 10px;
+    }
   }
+
+  .sublist {
+    list-style: none;
+    .sublist-item {
+      
+    }
 }
 `
 const UserInfo = styled.div`
