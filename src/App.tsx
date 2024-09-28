@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styled from 'styled-components'
-import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit } from "react-icons/ai";
+import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit, AiOutlineSave } from "react-icons/ai";
 import { useCallback, useEffect, useState } from 'react';
 import { SocketConnection} from './socket';
 import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
@@ -14,6 +14,13 @@ const ICON_SIZE_BIG = 24;
 const TEXT_SIZE_BIG = 24;
 const ICON_COLOR = '#a4a8ad';
 
+function Loading() {
+  return (
+    <Load>
+      <h2 data-text="Carregando...">Carregando...</h2>
+    </Load>
+  )
+}
 function Login() {
   return (
     <header>
@@ -29,7 +36,11 @@ function Home() {
 
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string | null>('');
-  const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState<string | null>('');
+
+  const [loadingApi, setLoadingApi] = useState(true);
+  const [loadingSocket, setLoadingSocket] = useState(true);
+
   const [token, setToken] = useState<string>();
 
   const onHandleText = useCallback((e:any) => {
@@ -42,6 +53,8 @@ function Home() {
 
   useEffect(() => {
     async function fetchToken() {
+      setLoadingApi(true);
+      setLoadingSocket(true)
       try {
         const data = await getToken();
         const response = await axios.get('http://localhost:3000/secure', {
@@ -50,10 +63,12 @@ function Home() {
           }
         });
         setToken(response.data.token);
-        setLoading(false);
+        setLoadingApi(false);
       } catch (error) {
         console.log("error", error);
-        setLoading(false);
+        setLoadingSocket(false);
+      } finally {
+        setLoadingApi(false);
       }
     }
 
@@ -65,6 +80,7 @@ function Home() {
       socketConnection.connect(token);
       function onConnect() {
         setIsConnected(true);
+        setLoadingSocket(false)
       }
     
       function onDisconnect() {
@@ -95,59 +111,66 @@ function Home() {
       }
     },[socketConnection, token]);
 
+
+
   const handleLogout = async () => {
     await signOut()
   }
 
   return (
-    <Grid>
-      <Sidebar>
-        <div className='title'>
-          <strong>GEditor</strong>
-        </div>
-
-        <MenuList>
-          <li><AiOutlineHome size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Inicio</strong></li>
-          {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
-        </MenuList>
-
-        <div className='user-info-line'>
-          <UserInfo>
-            <div className='user-info-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
-            <div className='user-info-name'>
-              <strong>{user?.fullName}</strong>
-              <div>{user?.primaryEmailAddress?.emailAddress}</div>
-            </div>
-            <div className='user-info-logout' onClick={handleLogout}><AiOutlineLogout color='red'/></div>
-          </UserInfo>
-        </div>
-      </Sidebar>
-
-      <Header>
-        <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
-        <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
-        <div className='user-info2'>
-          <span>{isConnected ? 'CONECTADO': 'DESCONECTADO'}</span>
-          <span>Olá, {user?.fullName}</span>
-          <div><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
-        </div>
-      </Header>
-
-      <Main>
-        
-        <Container>
-            <div className='title-text'>
-              <input placeholder='Nome do arquivo'/>
-              <AiOutlineEdit size={ICON_SIZE_BIG} color={ICON_COLOR}/>
+    <>
+      {loadingApi || loadingSocket ? (
+        <Loading />
+      ): (
+        <Grid>
+          <Sidebar>
+            <div className='title'>
+              <strong>GEditor</strong>
             </div>
 
-            <div>
-              <textarea value={text!} onChange={onHandleText} className='editor'></textarea>
-            </div>
-        </Container>
+            <MenuList>
+              <li><AiOutlineHome size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Inicio</strong></li>
+              {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
+            </MenuList>
 
-      </Main>
-    </Grid>
+            <div className='user-info-line'>
+              <UserInfo>
+                <div className='user-info-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
+                <div className='user-info-name'>
+                  <strong>{user?.fullName}</strong>
+                  <div>{user?.primaryEmailAddress?.emailAddress}</div>
+                </div>
+                <div className='user-info-logout' onClick={handleLogout}><AiOutlineLogout color='red'/></div>
+              </UserInfo>
+            </div>
+          </Sidebar>
+
+          <Header>
+            <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
+            <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
+            <div className='user-info2'>
+              <div className='save'><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
+              <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
+            </div>
+          </Header>
+
+          <Main>
+            
+            <Container>
+                <div className='title-text'>
+                  <input placeholder='Titulo'/>
+                  <AiOutlineEdit size={ICON_SIZE_BIG} color={ICON_COLOR}/>
+                </div>
+
+                <div>
+                  <textarea value={text!} onChange={onHandleText} className='editor'></textarea>
+                </div>
+            </Container>
+
+          </Main>
+        </Grid>
+      )}
+    </>
   )
 }
 function App() {
@@ -283,17 +306,39 @@ const Header = styled.div`
   flex-direction: row;
   align-items: center;
 
-  span {
-    margin-right: 10px;
+  .save {
+    background-color: ${TERTIARY_BACKGROUND};
+    border-radius: 80px;
+    padding: 8px 10px;
+    margin: 0 10px 0 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: ${PRIMARY_BACKGROUND};
+
+    span {
+      margin-left: 5px;
+    }
   }
 
-  div {
+  .user-info2-image {
+    position: relative;
     height: 50px;
     width: 50px;
 
     img {
       border-radius: 50%;
       height: 100%;
+    }
+    &::before {
+      content: '';
+      height: 15px;
+      width: 15px;
+      position: absolute;
+      border-radius: 50%;
+      background-color: #36cf36;
+      right: 0px;
     }
   }
  }
@@ -312,7 +357,7 @@ const Container = styled.div`
     display: flex;
     justify-items: center;
     padding: 15px;
-    border-radius: 16px;
+    border-radius: 8px;
     border: 1px solid #CBD5E1;
     background: #FFF;
     box-shadow: 0px 4px 8px -2px rgba(23, 23, 23, 0.10), 0px 2px 4px -2px rgba(23, 23, 23, 0.06);
@@ -332,6 +377,43 @@ const Container = styled.div`
     border: 1px solid #CBD5E1;
     background: #FFF;
     box-shadow: 0px 4px 8px -2px rgba(23, 23, 23, 0.10), 0px 2px 4px -2px rgba(23, 23, 23, 0.06); 
+  }
+`;
+
+const Load = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: ${MAIN_SECTION_PRIMARY_BACKGROUND};
+
+  h2 {
+    position: relative;
+    font-size: 9vw;
+    color: ${MAIN_SECTION_PRIMARY_BACKGROUND};
+    -webkit-text-stroke: 0.3vw ${TERTIARY_BACKGROUND};
+    text-transform: uppercase;
+
+    &::before {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 100%;
+      color: ${TERTIARY_BACKGROUND};
+      border-right: 2px solid ${TERTIARY_BACKGROUND};
+      overflow: hidden;
+      animation: animate 3s linear infinite;
+    }
+    @keyframes animate {
+      0%{
+        width: 0;
+      }
+      70%{
+        width: 100%;
+      }
+    }
   }
 `
 
