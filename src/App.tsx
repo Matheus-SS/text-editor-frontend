@@ -8,6 +8,13 @@ import axios from 'axios';
 import { z } from "zod";
 import toast, { Toaster } from 'react-hot-toast';
 
+type DocList = {
+  _id: string;
+  authorId: string;
+  text: string;
+  title: string;
+}
+
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
 const TERTIARY_BACKGROUND = '#4F46E5';
@@ -39,6 +46,7 @@ function Home() {
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string>('');
   const [title, setTitle] = useState<string>('');
+  const [listDoc, setListDoc] = useState<DocList[]>([]);
 
   const [loadingApi, setLoadingApi] = useState(true);
   const [loadingSocket, setLoadingSocket] = useState(true);
@@ -53,7 +61,7 @@ function Home() {
 
   const onHandleTitle = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
-  }, [socketConnection]);
+  }, []);
 
   const onHandleSave = () => {
     const Document = z.object({
@@ -64,7 +72,7 @@ function Home() {
       }),
       text: z.string().min(2, {
         message: 'Texto no mínimo 2 caracteres'
-      }).max(20, {
+      }).max(1000, {
         message: 'Texto no máximo 1000 caracteres'
       })
     });
@@ -79,6 +87,7 @@ function Home() {
         position: 'top-right'
       })
       console.log(err);
+      return;
     } else {
       obj = {
         title: doc.data.title,
@@ -87,7 +96,9 @@ function Home() {
     }
     
     console.log("text", text)
-    socketConnection.getSocket()?.emit('client.document.save', JSON.stringify(obj))
+    socketConnection.getSocket()?.emit('client.document.save', JSON.stringify(obj));
+    setText('');
+    setTitle('');
   };
 
   useEffect(() => {
@@ -136,20 +147,33 @@ function Home() {
     }
   },[socketConnection, token]);
 
+
     useEffect(() => {
       if (token) {
+        // lidar com texto do textarea
         socketConnection.getSocket()?.on('update-editor-change', (serverContent: string) => {
-          console.log("mensagem do servidor: ", serverContent)
-          const value = serverContent
-          setText(value)
+          console.log("mensagem do servidor: ", serverContent);
+          setText(serverContent);
+        });
+
+        // listar os texto no side bar
+        socketConnection.getSocket()?.emit('server.document.list', (response: { data: DocList[], success: boolean }) => {
+          console.log("response EMIT server.document.list",response.data);
+          setListDoc(response.data);
+        });
+
+        // receber os dados de quando adiciona um novo texto
+        socketConnection.getSocket()?.on('server.document.list', (response: { data: DocList[], success: boolean }) => {
+          console.log("response ON server.document.list", response);
+          setListDoc(response.data);
         });
 
         return () => {
+          socketConnection.getSocket()?.off('server.document.list');
           socketConnection.getSocket()?.off('update-editor-change');
         };
       }
     },[socketConnection, token]);
-
 
 
   const handleLogout = async () => {
@@ -173,8 +197,10 @@ function Home() {
                 <strong>Inicio</strong>
               </li>
               <ul className='sublist'>
-                  <li className='sublist-item'>titulo do texto</li>
-                </ul>
+                {listDoc.map((d) => (
+                  <li className='sublist-item' key={d._id}>{d.title}</li>
+                ))}
+              </ul>
               {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
             </MenuList>
 
