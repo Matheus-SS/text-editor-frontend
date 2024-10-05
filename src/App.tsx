@@ -8,7 +8,7 @@ import axios from 'axios';
 import { z } from "zod";
 import toast, { Toaster } from 'react-hot-toast';
 
-type DocList = {
+type Doc = {
   _id: string;
   authorId: string;
   text: string;
@@ -46,7 +46,8 @@ function Home() {
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string>('');
   const [title, setTitle] = useState<string>('');
-  const [listDoc, setListDoc] = useState<DocList[]>([]);
+  const [document, setDocument] = useState<Doc>();
+  const [listDoc, setListDoc] = useState<Doc[]>([]);
 
   const [loadingApi, setLoadingApi] = useState(true);
   const [loadingSocket, setLoadingSocket] = useState(true);
@@ -63,6 +64,12 @@ function Home() {
     setTitle(e.target.value);
   }, []);
 
+  const openFile = (_id: string) => {
+    socketConnection.getSocket()?.emit('server.document.open', _id, (response: { data: Doc, success: boolean }) => {
+      setDocument(response.data);
+    });
+  }
+  console.log("docs", document)
   const onHandleSave = () => {
     const Document = z.object({
       title: z.string().min(2, {
@@ -157,13 +164,13 @@ function Home() {
         });
 
         // listar os texto no side bar
-        socketConnection.getSocket()?.emit('server.document.list', (response: { data: DocList[], success: boolean }) => {
+        socketConnection.getSocket()?.emit('server.document.list', (response: { data: Doc[], success: boolean }) => {
           console.log("response EMIT server.document.list",response.data);
           setListDoc(response.data);
         });
 
         // receber os dados de quando adiciona um novo texto
-        socketConnection.getSocket()?.on('server.document.list', (response: { data: DocList[], success: boolean }) => {
+        socketConnection.getSocket()?.on('server.document.list', (response: { data: Doc[], success: boolean }) => {
           console.log("response ON server.document.list", response);
           setListDoc(response.data);
         });
@@ -198,7 +205,7 @@ function Home() {
               </li>
               <ul className='sublist'>
                 {listDoc.map((d) => (
-                  <li className='sublist-item' key={d._id}>{d.title}</li>
+                  <li className='sublist-item' key={d._id} onClick={() => openFile(d._id)}>{d.title}</li>
                 ))}
               </ul>
               {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
