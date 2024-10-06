@@ -23,6 +23,12 @@ const ICON_SIZE_BIG = 24;
 const TEXT_SIZE_BIG = 24;
 const ICON_COLOR = '#a4a8ad';
 
+function updateUrl(paramName: string, paramValue: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(paramName, paramValue);
+  window.history.pushState({}, '', url.toString());
+}
+
 function Loading() {
   return (
     <Load>
@@ -52,7 +58,7 @@ function Home() {
   const [loadingApi, setLoadingApi] = useState(true);
   const [loadingSocket, setLoadingSocket] = useState(true);
 
-  const [token, setToken] = useState<string>();
+  const [token, setToken] = useState<string>(); 
 
   const onHandleText = useCallback((e:any) => {
     setText(e.target.value);
@@ -64,9 +70,17 @@ function Home() {
     setTitle(e.target.value);
   }, []);
 
-  const openFile = (_id: string) => {
+  const openDoc = (_id: string) => {
     socketConnection.getSocket()?.emit('server.document.open', _id, (response: { data: Doc, success: boolean }) => {
-      setDocument(response.data);
+      if (response.success === false) {
+        setText('');
+        setTitle('');
+        toast.error('Documento nao encontrado');
+        return;
+      }
+      updateUrl('doc', response.data._id)
+      setText(response.data.text);
+      setTitle(response.data.title);
     });
   }
   console.log("docs", document)
@@ -96,14 +110,17 @@ function Home() {
       console.log(err);
       return;
     } else {
+      const params = new URLSearchParams(window.location.search);
+      const docId = params.get('doc');
       obj = {
+        docId: docId,
         title: doc.data.title,
         text: doc.data.text
       }
     }
     
     console.log("text", text)
-    socketConnection.getSocket()?.emit('client.document.save', JSON.stringify(obj));
+    socketConnection.getSocket()?.emit('client.document.save', obj);
     setText('');
     setTitle('');
   };
@@ -157,6 +174,13 @@ function Home() {
 
     useEffect(() => {
       if (token) {
+        const params = new URLSearchParams(window.location.search);
+        const docId = params.get('doc');
+
+        if (docId) {
+          openDoc(docId);
+        }
+
         // lidar com texto do textarea
         socketConnection.getSocket()?.on('update-editor-change', (serverContent: string) => {
           console.log("mensagem do servidor: ", serverContent);
@@ -171,6 +195,10 @@ function Home() {
 
         // receber os dados de quando adiciona um novo texto
         socketConnection.getSocket()?.on('server.document.list', (response: { data: Doc[], success: boolean }) => {
+          if (response.success === false) {
+            toast.error('Erro ao salvar documento')
+            return;
+          }
           console.log("response ON server.document.list", response);
           setListDoc(response.data);
         });
@@ -205,7 +233,7 @@ function Home() {
               </li>
               <ul className='sublist'>
                 {listDoc.map((d) => (
-                  <li className='sublist-item' key={d._id} onClick={() => openFile(d._id)}>{d.title}</li>
+                  <li className='sublist-item' key={d._id} onClick={() => openDoc(d._id)}>{d.title}</li>
                 ))}
               </ul>
               {/* <li><AiOutlineSetting size={ICON_SIZE_BIG} color={ICON_COLOR} /> <strong>Configurações</strong></li> */}
@@ -324,7 +352,7 @@ const MenuList = styled.ul.attrs({
   .sublist {
     list-style: none;
     .sublist-item {
-      
+      cursor: pointer;
     }
 }
 `
