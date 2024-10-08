@@ -8,6 +8,19 @@ import axios from 'axios';
 import { z } from "zod";
 import toast, { Toaster } from 'react-hot-toast';
 
+type Ok<T> = {
+  data: T,
+  success: true
+};
+
+type Err = {
+  error: string,
+  message: string,
+  success: false
+}
+
+type Result<T> = Ok<T> | Err
+
 type Doc = {
   _id: string;
   authorId: string;
@@ -54,6 +67,7 @@ function Home() {
   const [title, setTitle] = useState<string>('');
   const [document, setDocument] = useState<Doc>();
   const [listDoc, setListDoc] = useState<Doc[]>([]);
+  const [isNewButtonActive, setIsNewButtonActive] = useState<boolean>(false);
 
   const [loadingApi, setLoadingApi] = useState(true);
   const [loadingSocket, setLoadingSocket] = useState(true);
@@ -81,6 +95,7 @@ function Home() {
       updateUrl('doc', response.data._id)
       setText(response.data.text);
       setTitle(response.data.title);
+      setIsNewButtonActive(true)
     });
   }
   console.log("docs", document)
@@ -121,8 +136,6 @@ function Home() {
     
     console.log("text", text)
     socketConnection.getSocket()?.emit('client.document.save', obj);
-    setText('');
-    setTitle('');
   };
 
   useEffect(() => {
@@ -188,19 +201,23 @@ function Home() {
         });
 
         // listar os texto no side bar
-        socketConnection.getSocket()?.emit('server.document.list', (response: { data: Doc[], success: boolean }) => {
-          console.log("response EMIT server.document.list",response.data);
-          setListDoc(response.data);
+        socketConnection.getSocket()?.emit('server.document.list', (response: Result<Doc[]>) => {
+          if (response.success === true) {
+            console.log("response EMIT server.document.list", response);
+            setListDoc(response.data);
+          }
         });
 
-        // receber os dados de quando adiciona um novo texto
-        socketConnection.getSocket()?.on('server.document.list', (response: { data: Doc[], success: boolean }) => {
+        // receber os dados de quando adiciona um novo documento
+        socketConnection.getSocket()?.on('server.document.list', (response: Result<Doc[]>) => {
           if (response.success === false) {
-            toast.error('Erro ao salvar documento')
+            toast.error(response.message);
             return;
           }
           console.log("response ON server.document.list", response);
           setListDoc(response.data);
+          setIsNewButtonActive(true)
+          toast.success('Documento salvo com sucesso')
         });
 
         return () => {
@@ -253,7 +270,7 @@ function Home() {
 
           <Header>
             <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
-            <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div>
+            {isNewButtonActive && <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div> }
             <div className='user-info2'>
               <div className='save'onClick={onHandleSave}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
               <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
