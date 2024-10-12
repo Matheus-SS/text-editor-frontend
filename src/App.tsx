@@ -133,7 +133,7 @@ function Home() {
         text: doc.data.text
       }
     }
-    
+    console.log("OBJ", obj);
     console.log("text", text)
     socketConnection.getSocket()?.emit('client.document.save', obj);
   };
@@ -216,7 +216,9 @@ function Home() {
           }
           console.log("response ON server.document.list", response);
           setListDoc(response.data);
-          setIsNewButtonActive(true)
+          setIsNewButtonActive(true);
+          const lastInsertedDoc = response.data[response.data.length - 1];
+          updateUrl('doc', lastInsertedDoc._id);
           toast.success('Documento salvo com sucesso')
         });
 
