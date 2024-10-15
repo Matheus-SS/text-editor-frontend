@@ -84,7 +84,9 @@ function Home() {
 
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string>('');
+  const [textLoaded, setTextLoaded] = useState<string>('');
   const [title, setTitle] = useState<string>('');
+  const [currentURLDocId, setCurrentURLDocId] = useState('');
   const [document, setDocument] = useState<Doc>();
   const [listDoc, setListDoc] = useState<Doc[]>([]);
   const [isNewButtonActive, setIsNewButtonActive] = useState<boolean>(false);
@@ -115,9 +117,25 @@ function Home() {
       updateUrl('doc', response.data._id)
       setText(response.data.text);
       setTitle(response.data.title);
+      setTextLoaded(response.data.text);
+      setCurrentURLDocId(response.data._id);
       setIsNewButtonActive(true)
     });
   }
+
+  function isTextSame() {
+    const newTextToSave = text.split(' ');
+    const originalTextSplit = textLoaded.split(' ');
+    let i = 0;
+    while(i < originalTextSplit.length) {
+      if (originalTextSplit[i] !== newTextToSave[i]) {
+        return false;
+      }
+      i++;
+    }
+    return true;
+  };
+
   console.log("docs", document)
   const onHandleSave = () => {
     const Document = z.object({
@@ -148,7 +166,7 @@ function Home() {
       const params = new URLSearchParams(window.location.search);
       const docId = params.get('doc');
       obj = {
-        docId: docId,
+        docId: docId || currentURLDocId,
         title: doc.data.title,
         text: doc.data.text
       }
@@ -166,11 +184,17 @@ function Home() {
   function closeDialog(value?: string) {
     if (dialogRef.current && value !== 'yes') {
       dialogRef.current.close();
-    } else if ( dialogRef.current && value === 'yes') {
+    } else if (dialogRef.current && value === 'yes') {
       console.log("CRIAR");
       clearUrl();
       clearFields();
+      console.log();
+      if (!isTextSame()) {
+        onHandleSave();
+        console.log("MODAL SAVE")
+      }
       dialogRef.current?.close();
+      setIsNewButtonActive(false);
     }
   };
 
