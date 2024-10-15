@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styled from 'styled-components'
 import { AiOutlineHome, AiOutlineLogout, AiOutlinePlus, AiOutlineEdit, AiOutlineSave } from "react-icons/ai";
-import { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { SocketConnection} from './socket';
 import { SignInButton, useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios';
@@ -28,6 +28,10 @@ type Doc = {
   title: string;
 }
 
+type ModalProps = {
+  dialogRef: React.LegacyRef<HTMLDialogElement>;
+  onClose: (value?: string) => void;
+}
 const PRIMARY_BACKGROUND = '#FFF';
 const SECONDARY_BACKGROUND = '#000';
 const TERTIARY_BACKGROUND = '#4F46E5';
@@ -41,6 +45,10 @@ function updateUrl(paramName: string, paramValue: string) {
   url.searchParams.set(paramName, paramValue);
   window.history.pushState({}, '', url.toString());
 }
+
+function clearUrl() {
+  window.history.replaceState(null, '', window.location.pathname);
+};
 
 function Loading() {
   return (
@@ -57,10 +65,22 @@ function Login() {
   );
 }
 
+function Modal({ dialogRef, onClose }: ModalProps) {
+  return (
+    <ContainerModal ref={dialogRef}>
+      <h4>Tem certeza que deseja criar um novo documento?</h4>
+      <div className='modal-btn-container'>
+        <button className='modal-btn-yes' onClick={() => onClose('yes')}>Sim</button>
+        <button className='modal-btn-no' onClick={() => onClose()}>Não</button>
+      </div>
+  </ContainerModal>
+  )
+}
 function Home() {
   const socketConnection = SocketConnection.getInstance();
   const { signOut, getToken } = useAuth();
   const { user } = useUser();
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const [isConnected, setIsConnected] = useState(Boolean(socketConnection.getSocket()?.connected));
   const [text, setText] = useState<string>('');
@@ -136,6 +156,22 @@ function Home() {
     console.log("OBJ", obj);
     console.log("text", text)
     socketConnection.getSocket()?.emit('client.document.save', obj);
+  };
+
+  function clearFields() {
+    setTitle('');
+    setText('');
+  }
+
+  function closeDialog(value?: string) {
+    if (dialogRef.current && value !== 'yes') {
+      dialogRef.current.close();
+    } else if ( dialogRef.current && value === 'yes') {
+      console.log("CRIAR");
+      clearUrl();
+      clearFields();
+      dialogRef.current?.close();
+    }
   };
 
   useEffect(() => {
@@ -240,6 +276,8 @@ function Home() {
         <Loading />
       ): (
         <Grid>
+          <Modal dialogRef={dialogRef} onClose={closeDialog}/>
+          
           <Sidebar>
             <div className='title'>
               <strong>GEditor</strong>
@@ -272,7 +310,7 @@ function Home() {
 
           <Header>
             <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
-            {isNewButtonActive && <div className='tab'><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND} /> <span>Novo</span></div> }
+            {isNewButtonActive && <div className='tab' onClick={() => dialogRef.current?.showModal()}><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND}/> <span>Novo</span></div> }
             <div className='user-info2'>
               <div className='save'onClick={onHandleSave}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
               <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
@@ -493,7 +531,6 @@ const Header = styled.div`
   }
  }
 `
-
 const Main = styled.div`
   background-color: ${MAIN_SECTION_PRIMARY_BACKGROUND};
   padding-top: 30px;
@@ -565,6 +602,51 @@ const Load = styled.div`
       }
     }
   }
+`
+const ContainerModal = styled.dialog`
+  margin: 10% auto;
+  max-width: 350px;
+  background-color: #fff;
+  border: 0;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
+  &::backdrop {
+    background-color: rgba(0, 0, 0, 0.5); /* Backdrop background */
+  }
+  .modal-btn-container {
+    display: flex;
+    justify-content: space-evenly;
+    .modal-btn-yes {
+      background-color: #198754;
+      font-weight: 700;
+      border: 0;
+      font-size: 16px;
+      padding: 10px;
+      flex: 1;
+      border-radius: 8px;
+      margin: 0 5px;
+      color: #fff;
+      cursor: pointer;
+
+      &:focus {
+      outline: none; 
+     }
+    }
+    .modal-btn-no {
+      padding: 10px;
+      font-weight: 700;
+      border: 0;
+      font-size: 16px;
+      background-color: #dc3545;
+      flex: 1;
+      border-radius: 8px;
+      margin: 0 5px;
+      color: #fff;
+      cursor: pointer;
+    }
+  }
+ 
 `
 
 export default App
