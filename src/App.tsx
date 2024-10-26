@@ -68,9 +68,10 @@ function Login() {
 function Modal({ dialogRef, onClose }: ModalProps) {
   return (
     <ContainerModal ref={dialogRef}>
-      <h4>Tem certeza que deseja criar um novo documento?</h4>
+      <h4>Documento foi alterado, deseja salvar o arquivo?</h4>
       <div className='modal-btn-container'>
         <button className='modal-btn-yes' onClick={() => onClose('yes')}>Sim</button>
+        <button className='modal-btn-cancel' onClick={() => onClose('cancel')}>Cancelar</button>
         <button className='modal-btn-no' onClick={() => onClose()}>Não</button>
       </div>
   </ContainerModal>
@@ -182,17 +183,18 @@ function Home() {
   }
 
   function closeDialog(value?: string) {
-    if (dialogRef.current && value !== 'yes') {
+    if (dialogRef.current && value === 'cancel') {
       dialogRef.current.close();
     } else if (dialogRef.current && value === 'yes') {
-      console.log("CRIAR");
       clearUrl();
       clearFields();
-      console.log();
-      if (!isTextSame()) {
-        onHandleSave();
-        console.log("MODAL SAVE")
-      }
+      onHandleSave();
+      console.log("MODAL SAVE");
+      dialogRef.current?.close();
+      setIsNewButtonActive(false);
+    } else {
+      clearUrl();
+      clearFields();
       dialogRef.current?.close();
       setIsNewButtonActive(false);
     }
@@ -294,6 +296,17 @@ function Home() {
     await signOut()
   }
 
+  function handleNewDocButton() {
+    if(isTextSame()) {
+      setIsNewButtonActive(false);
+      clearUrl();
+      clearFields();
+      return;
+    } else {
+      dialogRef.current?.showModal();
+    }
+  }
+
   return (
     <>
       {loadingApi || loadingSocket ? (
@@ -334,7 +347,7 @@ function Home() {
 
           <Header>
             <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
-            {isNewButtonActive && <div className='tab' onClick={() => dialogRef.current?.showModal()}><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND}/> <span>Novo</span></div> }
+            {isNewButtonActive && <div className='tab' onClick={handleNewDocButton}><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND}/> <span>Novo</span></div> }
             <div className='user-info2'>
               <div className='save'onClick={onHandleSave}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
               <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
@@ -642,7 +655,7 @@ const ContainerModal = styled.dialog`
     display: flex;
     justify-content: space-evenly;
     .modal-btn-yes {
-      background-color: #198754;
+      background-color: #c5c7c6;
       font-weight: 700;
       border: 0;
       font-size: 16px;
@@ -652,17 +665,30 @@ const ContainerModal = styled.dialog`
       margin: 0 5px;
       color: #fff;
       cursor: pointer;
-
+      transition: 0.5s;
       &:focus {
       outline: none; 
      }
+
     }
     .modal-btn-no {
       padding: 10px;
       font-weight: 700;
       border: 0;
       font-size: 16px;
-      background-color: #dc3545;
+      background-color: #c5c7c6;
+      flex: 1;
+      border-radius: 8px;
+      margin: 0 5px;
+      color: #fff;
+      cursor: pointer;
+    }
+    .modal-btn-cancel {
+      padding: 10px;
+      font-weight: 700;
+      border: 0;
+      font-size: 16px;
+      background-color: #c5c7c6;
       flex: 1;
       border-radius: 8px;
       margin: 0 5px;
