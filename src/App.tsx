@@ -87,6 +87,7 @@ function Home() {
   const [text, setText] = useState<string>('');
   const [textLoaded, setTextLoaded] = useState<string>('');
   const [title, setTitle] = useState<string>('');
+  const [titleLoaded, setTitleLoaded] = useState<string>('');
   const [currentURLDocId, setCurrentURLDocId] = useState('');
   const [document, setDocument] = useState<Doc>();
   const [listDoc, setListDoc] = useState<Doc[]>([]);
@@ -119,6 +120,7 @@ function Home() {
       setText(response.data.text);
       setTitle(response.data.title);
       setTextLoaded(response.data.text);
+      setTitleLoaded(response.data.title);
       setCurrentURLDocId(response.data._id);
       setIsNewButtonActive(true)
     });
@@ -127,6 +129,13 @@ function Home() {
   function isTextSame() {
     const newTextToSave = text.split(' ');
     const originalTextSplit = textLoaded.split(' ');
+    console.log('newTextToSave',newTextToSave);
+    console.log('originalTextSplit',originalTextSplit);
+
+    if (newTextToSave.length !== originalTextSplit.length) {
+      return false;
+    }
+
     let i = 0;
     while(i < originalTextSplit.length) {
       if (originalTextSplit[i] !== newTextToSave[i]) {
@@ -137,8 +146,29 @@ function Home() {
     return true;
   };
 
+  function isTitleSame() {
+    const newTitleToSave = title.split(' ');
+    const originalTitleSplit = titleLoaded.split(' ');
+    console.log('newTitleToSave',newTitleToSave)
+    console.log('originalTitleSplit',originalTitleSplit)
+
+    if (newTitleToSave.length !== originalTitleSplit.length) {
+      return false;
+    }
+
+    let i = 0;
+
+    while(i < originalTitleSplit.length) {
+      if (originalTitleSplit[i] !== newTitleToSave[i]) {
+        return false;
+      }
+      i++;
+    }
+    return true;
+  };
+
   console.log("docs", document)
-  const onHandleSave = () => {
+  const onHandleSave = (update?: boolean) => {
     const Document = z.object({
       title: z.string().min(2, {
         message: 'Título no mínimo 2 caracteres'
@@ -174,6 +204,10 @@ function Home() {
     }
     console.log("OBJ", obj);
     console.log("text", text)
+    if (update) {
+      socketConnection.getSocket()?.emit('client.document.update', obj);
+      return
+    }
     socketConnection.getSocket()?.emit('client.document.save', obj);
   };
 
@@ -186,12 +220,12 @@ function Home() {
     if (dialogRef.current && value === 'cancel') {
       dialogRef.current.close();
     } else if (dialogRef.current && value === 'yes') {
-      clearUrl();
+      onHandleSave(true);
       clearFields();
-      onHandleSave();
+      clearUrl();
       console.log("MODAL SAVE");
-      dialogRef.current?.close();
       setIsNewButtonActive(false);
+      dialogRef.current?.close();
     } else {
       clearUrl();
       clearFields();
@@ -270,7 +304,7 @@ function Home() {
           }
         });
 
-        // receber os dados de quando adiciona um novo documento
+        // receber os dados de quando salva um novo documento
         socketConnection.getSocket()?.on('server.document.list', (response: Result<Doc[]>) => {
           if (response.success === false) {
             toast.error(response.message);
@@ -280,12 +314,29 @@ function Home() {
           setListDoc(response.data);
           setIsNewButtonActive(true);
           const lastInsertedDoc = response.data[response.data.length - 1];
+          setText(lastInsertedDoc.text);
+          setTextLoaded(lastInsertedDoc.text);
+          setTitle(lastInsertedDoc.title);
+          setTitleLoaded(lastInsertedDoc.title);
+
           updateUrl('doc', lastInsertedDoc._id);
+          toast.success('Documento salvo com sucesso')
+        });
+
+        // receber os dados de quando atualiza um novo documento
+        socketConnection.getSocket()?.on('server.document.update', (response: Result<Doc[]>) => {
+          if (response.success === false) {
+            toast.error(response.message);
+            return;
+          }
+          console.log("response ON server.document.update", response);
+          setListDoc(response.data);
           toast.success('Documento salvo com sucesso')
         });
 
         return () => {
           socketConnection.getSocket()?.off('server.document.list');
+          socketConnection.getSocket()?.off('server.document.update');
           socketConnection.getSocket()?.off('update-editor-change');
         };
       }
@@ -297,10 +348,11 @@ function Home() {
   }
 
   function handleNewDocButton() {
-    if(isTextSame()) {
+    if(isTextSame() && isTitleSame()) {
       setIsNewButtonActive(false);
       clearUrl();
       clearFields();
+      setCurrentURLDocId('');
       return;
     } else {
       dialogRef.current?.showModal();
@@ -349,7 +401,7 @@ function Home() {
             <div className='active-tab'><AiOutlineHome size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND} /> <span>Inicio</span></div>
             {isNewButtonActive && <div className='tab' onClick={handleNewDocButton}><AiOutlinePlus size={ICON_SIZE_BIG} color={SECONDARY_BACKGROUND}/> <span>Novo</span></div> }
             <div className='user-info2'>
-              <div className='save'onClick={onHandleSave}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
+              <div className='save'onClick={() => onHandleSave()}><AiOutlineSave size={ICON_SIZE_BIG} color={PRIMARY_BACKGROUND}/> <span>Salvar</span></div>
               <div className='user-info2-image'><img src={user?.imageUrl || 'https://i.pravatar.cc/150?img=5'} alt='foto-perfil'/></div>
             </div>
           </Header>
@@ -654,7 +706,8 @@ const ContainerModal = styled.dialog`
   .modal-btn-container {
     display: flex;
     justify-content: space-evenly;
-    .modal-btn-yes {
+    
+    button {
       background-color: #c5c7c6;
       font-weight: 700;
       border: 0;
@@ -666,34 +719,13 @@ const ContainerModal = styled.dialog`
       color: #fff;
       cursor: pointer;
       transition: 0.5s;
-      &:focus {
-      outline: none; 
-     }
 
-    }
-    .modal-btn-no {
-      padding: 10px;
-      font-weight: 700;
-      border: 0;
-      font-size: 16px;
-      background-color: #c5c7c6;
-      flex: 1;
-      border-radius: 8px;
-      margin: 0 5px;
-      color: #fff;
-      cursor: pointer;
-    }
-    .modal-btn-cancel {
-      padding: 10px;
-      font-weight: 700;
-      border: 0;
-      font-size: 16px;
-      background-color: #c5c7c6;
-      flex: 1;
-      border-radius: 8px;
-      margin: 0 5px;
-      color: #fff;
-      cursor: pointer;
+      &:focus {
+        outline: none; 
+      }
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.5);
+      }
     }
   }
  
